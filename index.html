@@ -583,17 +583,34 @@ const _origSave=save;
 save=function(){_origSave();schedPush();};
 
 async function gistConnect(token){
-  syncMsg('Создаём Gist...');dotSet('sync');
+  syncMsg('Ищем существующий Gist...');dotSet('sync');
   try{
+    // сначала ищем существующий Gist с нашим файлом
+    const listRes=await fetch('https://api.github.com/gists?per_page=100',{headers:{'Authorization':'token '+token},cache:'no-store'});
+    if(!listRes.ok){syncMsg('Ошибка: проверь токен',true);dotSet('err');return;}
+    const gists=await listRes.json();
+    const existing=gists.find(g=>g.files&&g.files['mission-control.json']);
+    if(existing){
+      _gToken=token;_gId=existing.id;
+      localStorage.setItem('mc_gt',token);localStorage.setItem('mc_gi',_gId);
+      syncMsg('Найден существующий Gist ✓ Загружаем данные...');
+      await gistPull();
+      renderHero();renderDash();renderSched();renderIelts();renderHabits();renderNotes();renderProj();nextCard();
+      syncMsg('Синхронизировано ✓');dotSet('ok');
+      updateSyncUI();
+      return;
+    }
+    // не нашли — создаём новый
+    syncMsg('Создаём новый Gist...');
     const r=await fetch('https://api.github.com/gists',{method:'POST',
       headers:{'Authorization':'token '+token,'Content-Type':'application/json'},
       body:JSON.stringify({description:'Mission Control',public:false,
         files:{'mission-control.json':{content:JSON.stringify(s)}}})});
-    if(!r.ok){syncMsg('Ошибка: проверь токен',true);dotSet('err');return;}
+    if(!r.ok){syncMsg('Ошибка создания',true);dotSet('err');return;}
     const d=await r.json();
     _gToken=token;_gId=d.id;
     localStorage.setItem('mc_gt',token);localStorage.setItem('mc_gi',_gId);
-    syncMsg('Подключено ✓ Gist ID: '+_gId.slice(0,8)+'…');dotSet('ok');
+    syncMsg('Подключено ✓ Gist создан');dotSet('ok');
     updateSyncUI();
   }catch(e){syncMsg('Сетевая ошибка',true);dotSet('err');}
 }
