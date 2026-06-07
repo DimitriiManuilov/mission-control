@@ -190,13 +190,19 @@
          Нужен <b>Personal Access Token</b> с правом <code>gist</code>.<br>
          <a href="https://github.com/settings/tokens/new?scopes=gist&description=MissionControl" target="_blank">→ Создать токен (откроется GitHub)</a></p>
       <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxxxxxx" style="font-family:monospace">
+      <div style="height:8px"></div>
+      <input type="text" id="syncGistId" placeholder="Gist ID (необязательно — для второго устройства)" style="font-family:monospace;font-size:13px">
       <div class="row">
         <button class="btn" id="syncConnect">Подключить</button>
         <button class="btn ghost" id="syncPull" style="display:none">↓ Обновить</button>
         <button class="btn ghost" id="syncDisconnect" style="display:none">Отключить</button>
       </div>
       <div class="syncstatus" id="syncMsg"></div>
-      <div style="font-size:12px;color:var(--muted);margin-top:14px">Последнее обновление: <span id="syncLast">—</span></div>
+      <div id="syncIdRow" style="display:none;margin-top:12px;background:var(--panel2);border-radius:12px;padding:10px 14px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Gist ID — скопируй и введи на другом устройстве:</div>
+        <div style="font-family:monospace;font-size:13px;word-break:break-all" id="syncIdVal"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px">Последнее обновление: <span id="syncLast">—</span></div>
     </div>
   </div>
 
@@ -582,7 +588,18 @@ function schedPush(){clearTimeout(_syncT);_syncT=setTimeout(gistPush,1800);}
 const _origSave=save;
 save=function(){_origSave();schedPush();};
 
-async function gistConnect(token){
+async function gistConnect(token, knownId=''){
+  // если ID уже известен — подключаемся напрямую
+  if(knownId){
+    _gToken=token;_gId=knownId;
+    localStorage.setItem('mc_gt',token);localStorage.setItem('mc_gi',knownId);
+    syncMsg('Подключаемся к Gist...');dotSet('sync');
+    await gistPull();
+    renderHero();renderDash();renderSched();renderIelts();renderHabits();renderNotes();renderProj();nextCard();
+    syncMsg('Синхронизировано ✓');dotSet('ok');
+    updateSyncUI();
+    return;
+  }
   syncMsg('Ищем существующий Gist...');dotSet('sync');
   try{
     // сначала ищем существующий Gist с нашим файлом
@@ -620,14 +637,25 @@ function updateSyncUI(){
   $('#syncDisconnect').style.display=connected?'':'none';
   $('#syncPull').style.display=connected?'':'none';
   $('#syncConnect').style.display=connected?'none':'';
-  if(connected){$('#syncToken').value='';$('#syncToken').placeholder='токен сохранён';}
+  if(connected){
+    $('#syncToken').value='';$('#syncToken').placeholder='токен сохранён';
+    $('#syncGistId').value='';$('#syncGistId').placeholder='Gist ID сохранён';
+    $('#syncIdRow').style.display='';
+    $('#syncIdVal').textContent=_gId;
+  } else {
+    $('#syncIdRow').style.display='none';
+  }
   dotSet(connected?'ok':'idle');
 }
 
 $('#syncBtn').onclick=()=>$('#syncModal').classList.add('open');
 $('#syncClose').onclick=()=>$('#syncModal').classList.remove('open');
 $('#syncModal').onclick=e=>{if(e.target===$('#syncModal'))$('#syncModal').classList.remove('open');};
-$('#syncConnect').onclick=()=>{const t=$('#syncToken').value.trim();if(!t){syncMsg('Введи токен',true);return;}gistConnect(t);};
+$('#syncConnect').onclick=()=>{
+  const t=$('#syncToken').value.trim();if(!t){syncMsg('Введи токен',true);return;}
+  const gid=$('#syncGistId').value.trim();
+  gistConnect(t,gid);
+};
 $('#syncPull').onclick=()=>gistPull();
 $('#syncDisconnect').onclick=()=>{if(!confirm('Отключить синхронизацию?'))return;_gToken='';_gId='';localStorage.removeItem('mc_gt');localStorage.removeItem('mc_gi');syncMsg('Отключено');updateSyncUI();};
 
