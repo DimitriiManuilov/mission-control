@@ -192,9 +192,11 @@
       <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxxxxxx" style="font-family:monospace">
       <div class="row">
         <button class="btn" id="syncConnect">Подключить</button>
+        <button class="btn ghost" id="syncPull" style="display:none">↓ Обновить</button>
         <button class="btn ghost" id="syncDisconnect" style="display:none">Отключить</button>
       </div>
       <div class="syncstatus" id="syncMsg"></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:14px">Последнее обновление: <span id="syncLast">—</span></div>
     </div>
   </div>
 
@@ -555,16 +557,23 @@ async function gistPush(){
   }catch(e){dotSet('err');}
 }
 
-async function gistPull(){
+async function gistPull(silent=false){
   if(!_gToken||!_gId)return;
-  dotSet('sync');
+  if(!silent)dotSet('sync');
   try{
-    const r=await fetch(`https://api.github.com/gists/${_gId}`,{headers:{'Authorization':'token '+_gToken}});
+    const r=await fetch(`https://api.github.com/gists/${_gId}?t=${Date.now()}`,{headers:{'Authorization':'token '+_gToken}});
     if(!r.ok){dotSet('err');return;}
     const d=await r.json();
     const raw=d.files['mission-control.json']?.content;
-    if(raw){Object.assign(s,JSON.parse(raw));save();}
+    if(raw){
+      const remote=JSON.parse(raw);
+      Object.assign(s,remote);
+      _origSave();
+      renderHero();renderDash();renderSched();renderIelts();renderHabits();renderNotes();renderProj();nextCard();
+    }
     dotSet('ok');
+    const now=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    $('#syncLast').textContent=now;
   }catch(e){dotSet('err');}
 }
 
@@ -592,6 +601,7 @@ async function gistConnect(token){
 function updateSyncUI(){
   const connected=!!(_gToken&&_gId);
   $('#syncDisconnect').style.display=connected?'':'none';
+  $('#syncPull').style.display=connected?'':'none';
   $('#syncConnect').style.display=connected?'none':'';
   if(connected){$('#syncToken').value='';$('#syncToken').placeholder='токен сохранён';}
   dotSet(connected?'ok':'idle');
@@ -601,7 +611,11 @@ $('#syncBtn').onclick=()=>$('#syncModal').classList.add('open');
 $('#syncClose').onclick=()=>$('#syncModal').classList.remove('open');
 $('#syncModal').onclick=e=>{if(e.target===$('#syncModal'))$('#syncModal').classList.remove('open');};
 $('#syncConnect').onclick=()=>{const t=$('#syncToken').value.trim();if(!t){syncMsg('Введи токен',true);return;}gistConnect(t);};
+$('#syncPull').onclick=()=>gistPull();
 $('#syncDisconnect').onclick=()=>{if(!confirm('Отключить синхронизацию?'))return;_gToken='';_gId='';localStorage.removeItem('mc_gt');localStorage.removeItem('mc_gi');syncMsg('Отключено');updateSyncUI();};
+
+// автопулл каждые 30 секунд
+setInterval(()=>gistPull(true), 30000);
 
 (async function(){
   $('#hdate').textContent=new Date().toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'long'});
