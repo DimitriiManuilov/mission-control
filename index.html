@@ -561,7 +561,7 @@ async function gistPull(silent=false){
   if(!_gToken||!_gId)return;
   if(!silent)dotSet('sync');
   try{
-    const r=await fetch(`https://api.github.com/gists/${_gId}?t=${Date.now()}`,{headers:{'Authorization':'token '+_gToken}});
+    const r=await fetch(`https://api.github.com/gists/${_gId}`,{headers:{'Authorization':'token '+_gToken,'Cache-Control':'no-cache','Pragma':'no-cache'},cache:'no-store'});
     if(!r.ok){dotSet('err');return;}
     const d=await r.json();
     const raw=d.files['mission-control.json']?.content;
@@ -616,6 +616,9 @@ $('#syncDisconnect').onclick=()=>{if(!confirm('Отключить синхрон
 
 // автопулл каждые 30 секунд
 setInterval(()=>gistPull(true), 30000);
+// pull при возвращении на вкладку / разблокировке телефона
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')gistPull(true);});
+window.addEventListener('focus',()=>gistPull(true));
 
 (async function(){
   $('#hdate').textContent=new Date().toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'long'});
